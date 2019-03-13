@@ -34,20 +34,10 @@ class BillingAPITest {
 
         assertEquals("[]", listAccountsFromAPI())
 
-        val acc1 = Klaxon().parse<Account>(httpPost {
-            host = "localhost"
-            port = 4567
-            path = "/account/create"
-        }.body()!!.string())
-        assertEquals(acc1, Klaxon().parse<Account>(getAccountFromAPI(acc1!!.id)))
+        val acc1 = createAccount()
+        val acc2 = createAccount()
 
-        val acc2 = Klaxon().parse<Account>(httpPost {
-            host = "localhost"
-            port = 4567
-            path = "/account/create"
-            param { "amount" to 100 }
-        }.body()!!.string())
-        assertEquals(acc2, Klaxon().parse<Account>(getAccountFromAPI(acc2!!.id)))
+        assertEquals(acc2, Klaxon().parse<Account>(getAccountFromAPI(acc2.id)))
 
         assertEquals(Klaxon().toJsonString(mutableListOf(acc1, acc2).sortedBy { it.id }), listAccountsFromAPI())
         assertEquals(Klaxon().toJsonString(acc1), getAccountFromAPI(acc1.id))
@@ -58,18 +48,8 @@ class BillingAPITest {
     fun transfer() {
         BillingController(BillingService())
 
-        val from = Klaxon().parse<Account>(httpPost {
-            host = "localhost"
-            port = 4567
-            path = "/account/create"
-            param { "amount" to 100 }
-        }.body()!!.string())!!
-        val to = Klaxon().parse<Account>(httpPost {
-            host = "localhost"
-            port = 4567
-            path = "/account/create"
-            param { "amount" to 100 }
-        }.body()!!.string())!!
+        val from = createAccount()
+        val to = createAccount()
 
         httpPut {
             host = "localhost"
@@ -87,23 +67,13 @@ class BillingAPITest {
     }
 
     @Test
-    fun `transfer not enough money`() {
+    fun `transfer when not enough money`() {
         BillingController(BillingService())
 
-        val from = Klaxon().parse<Account>(httpPost {
-            host = "localhost"
-            port = 4567
-            path = "/account/create"
-            param { "amount" to 100 }
-        }.body()!!.string())!!
-        val to = Klaxon().parse<Account>(httpPost {
-            host = "localhost"
-            port = 4567
-            path = "/account/create"
-            param { "amount" to 100 }
-        }.body()!!.string())!!
+        val from = createAccount()
+        val to = createAccount()
 
-        httpPut {
+        val transferResult = httpPut {
             host = "localhost"
             port = 4567
             path = "/transfer"
@@ -114,9 +84,60 @@ class BillingAPITest {
             }
         }.body()!!.string()
 
+        assertEquals("{\"error\":\"Not enough money in account\"}", transferResult)
         assertEquals(100, Klaxon().parse<Account>(getAccountFromAPI(from.id))!!.amount)
         assertEquals(100, Klaxon().parse<Account>(getAccountFromAPI(to.id))!!.amount)
     }
+
+    @Test
+    fun `transfer from un-existing account`() {
+        BillingController(BillingService())
+
+        val acc = createAccount()
+
+        val transferResult = httpPut {
+            host = "localhost"
+            port = 4567
+            path = "/transfer"
+            param {
+                "amount" to 50
+                "from" to acc.id
+                "to" to "NOT-EXISTING-ACCOUNT-ID"
+            }
+        }.body()!!.string()
+
+        assertEquals("{\"error\":\"No such account NOT-EXISTING-ACCOUNT-ID\"}", transferResult)
+        assertEquals(100, Klaxon().parse<Account>(getAccountFromAPI(acc.id))!!.amount)
+    }
+
+    @Test
+    fun `transfer to un-existing account`() {
+        BillingController(BillingService())
+
+        val acc = createAccount()
+
+        val transferResult = httpPut {
+            host = "localhost"
+            port = 4567
+            path = "/transfer"
+            param {
+                "amount" to 50
+                "from" to "NOT-EXISTING-ACCOUNT-ID"
+                "to" to acc.id
+            }
+        }.body()!!.string()
+
+        assertEquals("{\"error\":\"No such account NOT-EXISTING-ACCOUNT-ID\"}", transferResult)
+        assertEquals(100, Klaxon().parse<Account>(getAccountFromAPI(acc.id))!!.amount)
+    }
+
+    private fun createAccount() =
+        Klaxon().parse<Account>(httpPost {
+            host = "localhost"
+            port = 4567
+            path = "/account/create"
+            param { "amount" to 100 }
+        }.body()!!.string())!!
 
     private fun listAccountsFromAPI() = httpGet {
         host = "localhost"

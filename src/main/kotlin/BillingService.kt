@@ -20,7 +20,6 @@ class BillingService {
     }
 
     fun createAccount(amount: Long): Account {
-        if(amount < 0) throw IllegalArgumentException()
         val account = Account(UUID.randomUUID().toString(), amount)
         accounts[account.id] = account
         return account
