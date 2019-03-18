@@ -1,7 +1,7 @@
 import java.util.*
 import java.util.concurrent.ConcurrentHashMap
 
-data class Account(val id: String, var amount: Long)
+data class Account(val id: String, @get:Synchronized @set:Synchronized var amount: Long)
 
 class BillingService {
     val accounts = ConcurrentHashMap<String, Account>()
